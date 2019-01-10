@@ -1,12 +1,10 @@
-import sys
 from math import cos, sin
 from operator import xor
-from random import randint
 from typing import List, Callable, Dict
 
 from PyQt5.QtCore import QRect, Qt, QPoint, QSize, QRectF, QPointF, QSizeF
 from PyQt5.QtGui import QPainter, QColor, QFont, QMouseEvent, QPainterPath, QFontMetrics
-from PyQt5.QtWidgets import QWidget, QApplication, QMainWindow
+from PyQt5.QtWidgets import QWidget
 
 TOP = 0
 RIGHT = 1
@@ -387,26 +385,3 @@ class QBarGraphWidget(QWidget):
     def set_tooltip_func(self, func: Callable[[str, int, str], str]):
         self._tooltip_func = func
 
-
-if __name__ == '__main__':
-    from Client.MyQt.Widgets.Graph.HistogramWidget import Histogram
-
-    app = QApplication(sys.argv)
-
-    window = QMainWindow()
-    hist = Histogram([randint(1995, 2014) for _ in range(randint(20, 50))], name="1", flags=window)
-
-    hist.horizontal_ax.set_ticks(list(range(1990, 2018)))
-    hist.horizontal_ax.set_tick_margin(20)
-    hist.horizontal_ax.set_tick_rotation(30)
-    hist.add_plot([randint(1995, 2014) for _ in range(randint(20, 50))], name="2")
-    hist.add_plot([randint(1995, 2014) for _ in range(randint(20, 50))], name="3")
-    hist.horizontal_ax.set_label("Год")
-    hist.vertical_ax.set_label("Количество")
-    hist.set_tooltip_func(lambda value, index, plot_name: f"Количество: {value}\nГод: {index}\nГрафик: {plot_name}")
-
-    window.setCentralWidget(hist)
-
-    window.show()
-
-    sys.exit(app.exec_())

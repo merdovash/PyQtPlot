@@ -1,0 +1,1 @@
+github: [https://github.com/merdovash/PyQtPlot](https://github.com/merdovash/PyQtPlot)

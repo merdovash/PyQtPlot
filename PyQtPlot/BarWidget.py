@@ -340,7 +340,7 @@ class QBarGraphWidget(QWidget):
 
             fm = QFontMetrics(self.font)
             width = fm.width(lines[lengths.index(max(lengths))])
-            height = fm.height() * res.count('\n') + (res.count('\n') - 1) * fm.lineSpacing()
+            height = fm.height() * (res.count('\n') + 1) + res.count('\n') * fm.lineSpacing()
 
             path = QPainterPath()
             path.addRoundedRect(

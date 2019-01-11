@@ -20,7 +20,7 @@ class QBarGraphWidget(_AbstractGraphicView):
         self.bars = bars
         self.heights = heights
 
-        self.add_plot({bars[i]: heights[i] for i in range(len(bars))}, name)
+        self.add_plot({bars[i]: heights[i] for i in range(len(bars))}, name, color=kwargs.get('color', None))
 
         # if len(heights):
         #     self.vertical_ax.set_ticks(range(0, max(heights) + 1, max(int(max(heights) / 20), 1)))
@@ -30,7 +30,9 @@ class QBarGraphWidget(_AbstractGraphicView):
         # self.horizontal_ax.set_ticks(bars)
 
     def add_plot(self, plot: Dict[int, int], name: str, color: QColor = None):
-        self.plots[name] = _Plot(plot, name, self, color=self._define_color(color))
+        color = self._define_color(color)
+        print(color.name())
+        self.plots[name] = _Plot(plot, name, self, color=color)
         plots: List[_Plot] = list(self.plots.values())
         for index, p in enumerate(plots):
             p.set_nested_width(p.real_width() / len(plots))

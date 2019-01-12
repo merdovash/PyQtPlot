@@ -3,7 +3,7 @@ from operator import xor
 from typing import Dict, Callable, List, Tuple
 
 from PyQt5.QtCore import QRect, Qt, QPoint, QPointF, QRectF, QSizeF, QSize
-from PyQt5.QtGui import QPainter, QColor, QFontMetrics, QPainterPath, QFont, QPaintEvent, QBrush, QMouseEvent
+from PyQt5.QtGui import QPainter, QColor, QFontMetrics, QPainterPath, QFont, QPaintEvent, QBrush, QMouseEvent, QPen
 from PyQt5.QtWidgets import QWidget
 
 
@@ -169,6 +169,7 @@ class _Axis:
 
     _min_tick_interval = 30
     _tick_skip = [1, 2, 5, 10, 25, 100, 1000]
+    _real_ticks: List[int] = None
 
     def __init__(self, parent):
         self.width = parent.width
@@ -201,6 +202,9 @@ class _Axis:
             return self.parent.plots.y_ticks()
         if self.orientation == _Axis.HORIZONTAL:
             return self.parent.plots.x_ticks()
+
+    def real_ticks(self):
+        return self._real_ticks
 
     def _set_tick_interval(self, val):
         self._tick_interval = val
@@ -257,6 +261,8 @@ class _HorizontalAxis(_Axis):
         self._offset = 0
 
     def paint(self, painter):
+        self._real_ticks = []
+
         width = self.width()
         height = self.height()
         margin_right = self.parent.margin_right()
@@ -280,6 +286,7 @@ class _HorizontalAxis(_Axis):
             if skip != 0 and (i-1) % self._tick_skip[skip] == 0:
                 continue
             x_pos = margin_left + (i + self.offset()) * tick_interval
+            self._real_ticks.append(x_pos)
             painter.drawLine(x_pos, y_pos - tick_width / 2, x_pos, y_pos + tick_width / 2)
 
             if self.tick_rotation() != 0:
@@ -337,6 +344,8 @@ class _VerticalAxis(_Axis):
         super().__init__(parent)
 
     def paint(self, painter):
+        self._real_ticks = []
+
         width = self.width()
         height = self.height()
         top, right = self.parent.margin_top(), self.parent.margin_right()
@@ -361,6 +370,7 @@ class _VerticalAxis(_Axis):
                 continue
             if i in ticks:
                 y_pos = (height - bottom) - i * tick_interval
+                self._real_ticks.append(y_pos)
                 painter.drawLine(left - self.tick_width() / 2, y_pos, left + self.tick_width() / 2, y_pos)
 
                 painter.drawText(
@@ -404,6 +414,52 @@ class Margin:
             return size * self.value
 
 
+class Grid:
+    _default_color: QColor = QColor(80, 80, 80, 80)
+    _color: QColor = None
+
+    def __init__(self, parent, **kwargs):
+        self.parent = parent
+        self._color = kwargs.get('grid_color', None)
+
+        self._show_vertical = kwargs.get('grid_vertical', False)
+        self._show_horizontal = kwargs.get('grid_horizontal', False)
+
+    def paint(self, painter):
+        painter.setPen(QPen(self.color()))
+        if self.horizontal():
+            x_start = self.parent.margin_left()
+            x_end = self.parent.width() - self.parent.margin_right()
+            for y_pos in self.parent.vertical_ax.real_ticks():
+                painter.drawLine(QPoint(x_start, y_pos), QPoint(x_end, y_pos))
+
+        if self.vertical():
+            y_start = self.parent.margin_top()
+            y_end = self.parent.height() - self.parent.margin_bottom()
+            for x_pos in self.parent.horizontal_ax.real_ticks():
+                painter.drawLine(x_pos, y_start, x_pos, y_end)
+
+    def horizontal(self):
+        return self._show_horizontal
+
+    def show_horizontal(self, val: bool):
+        self._show_horizontal = val
+
+    def vertical(self):
+        return self._show_vertical
+
+    def show_vertical(self, val: bool):
+        self._show_vertical = val
+
+    def color(self):
+        if self._color is not None:
+            return self._color
+        return self._default_color
+
+    def set_color(self, color: QColor):
+        self._color = color
+
+
 class _AbstractGraphicView(QWidget):
     _default_colors = [QColor(255, 128, 0), QColor(0, 0, 255), QColor(255, 0, 0), QColor(0, 255, 0)]
     _default_tooltip_brush = QBrush(QColor(255, 255, 255, 80))
@@ -411,7 +467,7 @@ class _AbstractGraphicView(QWidget):
     _default_plot_size: int
 
     def __init__(self, flags, *args, **kwargs):
-        super().__init__(flags, *args, **kwargs)
+        super().__init__(flags, *args)
 
         if kwargs.get('data', False):
             if kwargs.get('name', False):
@@ -428,8 +484,8 @@ class _AbstractGraphicView(QWidget):
         self._tooltip_horizontal_offset = 10
 
         self.horizontal_ax = _HorizontalAxis(self)
-
         self.vertical_ax = _VerticalAxis(self)
+        self.grid = Grid(self, **kwargs)
 
         self.plots: _PlotsDict[str, _AbstractGraph] = _PlotsDict()
 
@@ -482,6 +538,7 @@ class _AbstractGraphicView(QWidget):
 
         self.vertical_ax.paint(painter)
         self.horizontal_ax.paint(painter)
+        self.grid.paint(painter)
 
         for plot in self.plots.values():
             plot.paint(painter)
@@ -508,6 +565,7 @@ class _AbstractGraphicView(QWidget):
 
     def _paint_tooltip(self, painter: QPainter, point: QPoint, text: str, bar: int, plot_name: str,
                        color: QColor, vertical_offset: int) -> int:
+        painter.setPen(QPen(QColor(40, 40, 40)))
         res = self._tooltip_func(text, bar, plot_name)
         painter.setBrush(self._default_tooltip_brush)
         point.setY(point.y() + vertical_offset)
@@ -516,7 +574,7 @@ class _AbstractGraphicView(QWidget):
             min(color.red() * 1.4, 255),
             min(color.green() * 1.4, 255),
             min(color.blue() * 1.4, 255),
-            80)
+            200)
 
         if res is not None:
             lines: List = res.split('\n')

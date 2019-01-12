@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="PyQtPlot",
-    version="0.0.1b",
+    version="0.0.2",
     author="Vlad Schekochikhin",
     author_email="vladschekochikhin@gmail.com",
     description="PyQt native library for plotting data.",

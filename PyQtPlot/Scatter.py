@@ -19,6 +19,7 @@ class QScatter(_AbstractGraphicView):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = QScatter()
+    w.grid.show_horizontal(True)
     w.add_plot([x * x for x in range(10)], 'first')
     w.add_plot([sqrt(x) for x in range(25)], 'second')
     # w.vertical_ax.set_ticks(range(25))

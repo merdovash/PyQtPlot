@@ -1,4 +1,4 @@
-from math import cos, sin, ceil
+from math import cos, sin
 from operator import xor
 from typing import Dict, Callable, List, Tuple
 
@@ -17,12 +17,28 @@ class _TooltipPreparedData:
 
 
 class _PlotsDict(dict):
-    def x_ticks(self):
-        return range(max([i.max_x() for i in self.values()]) + 1)
+    def __init__(self, parent, **kwargs):
+        super().__init__(**kwargs)
+        self.parent: _AbstractGraphicView = parent
 
-    def y_ticks(self):
-        ys = [i.max_y() for i in self.values()]
-        return range(max(ys) + 1)
+    def ticks(self, orientation):
+        return range(self.max(orientation)+1)
+
+    def max(self, orientation):
+        def y():
+            return max([i.max_y() for i in self.values()])
+
+        def x():
+            return max([i.max_x() for i in self.values()])
+
+        if self.parent.grid.style() == Grid.FREE:
+            if orientation == _Axis.VERTICAL:
+                return y()
+
+            if orientation == _Axis.HORIZONTAL:
+                return x()
+        if self.parent.grid.style() == Grid.EQUAL:
+            return max(y(), x())
 
 
 class _AbstractGraph:
@@ -43,12 +59,12 @@ class _AbstractGraph:
 
         self.rectangles: List[_TooltipPreparedData] = []
 
-    def paint(self, painter: QPainter):
+    def paint_event(self, painter: QPainter):
         self.before_paint()
-        self._paint(painter)
+        self.paint(painter)
         self.after_paint()
 
-    def _paint(self, painter: QPainter):
+    def paint(self, painter: QPainter):
         raise NotImplementedError()
 
     def before_paint(self):
@@ -88,7 +104,7 @@ class _AbstractGraph:
 class _Scatter(_AbstractGraph):
     default_brush = QBrush(QColor(255, 128, 0))
 
-    def _paint(self, painter: QPainter):
+    def paint(self, painter: QPainter):
         size = self.size()
         painter.setBrush(self.get_brush())
         start = QPoint(self.parent.margin_left(), self.parent.height() - self.parent.margin_top())
@@ -120,7 +136,7 @@ class _Plot(_AbstractGraph):
         self._nested_width = 0
         self._offset = 0
 
-    def _paint(self, painter):
+    def paint(self, painter):
         margin_left = self.parent.margin_left()
 
         for bar, h in self.data.items():
@@ -171,7 +187,7 @@ class _Axis:
     _tick_skip = [1, 2, 5, 10, 25, 100, 1000]
     _real_ticks: List[int] = None
 
-    def __init__(self, parent):
+    def __init__(self, parent, **kwargs):
         self.width = parent.width
         self.height = parent.height
         self.parent: _AbstractGraphicView = parent
@@ -198,10 +214,8 @@ class _Axis:
     def ticks(self):
         if self._ticks is not None:
             return self._ticks
-        if self.orientation == _Axis.VERTICAL:
-            return self.parent.plots.y_ticks()
-        if self.orientation == _Axis.HORIZONTAL:
-            return self.parent.plots.x_ticks()
+
+        return self.parent.plots.ticks(self.orientation)
 
     def real_ticks(self):
         return self._real_ticks
@@ -255,8 +269,8 @@ class _Axis:
 class _HorizontalAxis(_Axis):
     orientation = _Axis.HORIZONTAL
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, **kwargs)
 
         self._offset = 0
 
@@ -283,7 +297,7 @@ class _HorizontalAxis(_Axis):
         tick_width = self.tick_width()
 
         for i in range(self.tick_count()):
-            if skip != 0 and (i-1) % self._tick_skip[skip] == 0:
+            if skip != 0 and i % self._tick_skip[skip] != 0:
                 continue
             x_pos = margin_left + (i + self.offset()) * tick_interval
             self._real_ticks.append(x_pos)
@@ -309,7 +323,7 @@ class _HorizontalAxis(_Axis):
                     QRect(
                         x_pos - self.tick_interval() / 2,
                         y_pos + tick_width / 2 + 4 + self.tick_margin(),
-                        tick_interval,
+                        40,
                         20),
                     Qt.AlignHCenter,
                     str(self.ticks()[i])
@@ -340,8 +354,8 @@ class _HorizontalAxis(_Axis):
 class _VerticalAxis(_Axis):
     orientation = _Axis.VERTICAL
 
-    def __init__(self, parent: '_AbstractGraphicView'):
-        super().__init__(parent)
+    def __init__(self, parent: '_AbstractGraphicView', **kwargs):
+        super().__init__(parent, **kwargs)
 
     def paint(self, painter):
         self._real_ticks = []
@@ -418,6 +432,10 @@ class Grid:
     _default_color: QColor = QColor(80, 80, 80, 80)
     _color: QColor = None
 
+    EQUAL = 1
+    FREE = 0
+    _style: int = FREE
+
     def __init__(self, parent, **kwargs):
         self.parent = parent
         self._color = kwargs.get('grid_color', None)
@@ -459,6 +477,12 @@ class Grid:
     def set_color(self, color: QColor):
         self._color = color
 
+    def style(self):
+        return self._style
+
+    def set_style(self, val):
+        self._style = val
+
 
 class _AbstractGraphicView(QWidget):
     _default_colors = [QColor(255, 128, 0), QColor(0, 0, 255), QColor(255, 0, 0), QColor(0, 255, 0)]
@@ -483,11 +507,11 @@ class _AbstractGraphicView(QWidget):
         self._tooltip_count = 0
         self._tooltip_horizontal_offset = 10
 
-        self.horizontal_ax = _HorizontalAxis(self)
-        self.vertical_ax = _VerticalAxis(self)
+        self.horizontal_ax = _HorizontalAxis(self, **kwargs)
+        self.vertical_ax = _VerticalAxis(self, **kwargs)
         self.grid = Grid(self, **kwargs)
 
-        self.plots: _PlotsDict[str, _AbstractGraph] = _PlotsDict()
+        self.plots: _PlotsDict[str, _AbstractGraph] = _PlotsDict(self)
 
         self.color = QColor(255, 128, 0)
         self.bg_color = QColor(255, 255, 255)
@@ -541,7 +565,7 @@ class _AbstractGraphicView(QWidget):
         self.grid.paint(painter)
 
         for plot in self.plots.values():
-            plot.paint(painter)
+            plot.paint_event(painter)
 
         vertical_offset = 0
         while len(self.tooltips):

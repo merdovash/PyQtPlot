@@ -8,12 +8,7 @@ from PyQtPlot._Base import _AbstractGraphicView, _Scatter
 
 class QScatter(_AbstractGraphicView):
     _default_plot_size = 8
-
-    def __init__(self, flags=None, *args, **kwargs):
-        super().__init__(flags, *args, **kwargs)
-
-    def add_plot(self, data, name, color=None):
-        self.plots[name] = _Scatter(data, name, self, color=self._define_color(color))
+    plot_type = _Scatter
 
 
 if __name__ == '__main__':

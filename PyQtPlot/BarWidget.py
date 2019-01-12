@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from PyQt5.QtGui import QColor
 
-from PyQtPlot._Base import _Plot, _AbstractGraphicView
+from PyQtPlot._Base import _Bar, _AbstractGraphicView
 
 TOP = 0
 RIGHT = 1
@@ -12,6 +12,7 @@ LEFT = 3
 
 class QBarGraphWidget(_AbstractGraphicView):
     _default_plot_size = 0.8
+    plot_type = _Bar
 
     def __init__(self, bars, heights, flags, name="", *args, **kwargs):
         assert len(bars) == len(heights)
@@ -31,9 +32,9 @@ class QBarGraphWidget(_AbstractGraphicView):
 
     def add_plot(self, plot: Dict[int, int], name: str, color: QColor = None):
         color = self._define_color(color)
-        self.plots[name] = _Plot(plot, name, self, color=color)
+        self.plots[name] = _Bar(plot, name, self, color=color)
 
-        plots: List[_Plot] = list(self.plots.values())
+        plots: List[_Bar] = list(self.plots.values())
         for index, p in enumerate(plots):
             p.set_nested_width(p.real_width() / len(plots))
             if index > 0:

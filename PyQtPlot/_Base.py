@@ -1,9 +1,10 @@
-from math import cos, sin
+from math import cos, sin, ceil, sqrt, floor
 from operator import xor
 from typing import Dict, Callable, List, Tuple
 
 from PyQt5.QtCore import QRect, Qt, QPoint, QPointF, QRectF, QSizeF, QSize
-from PyQt5.QtGui import QPainter, QColor, QFontMetrics, QPainterPath, QFont, QPaintEvent, QBrush, QMouseEvent, QPen
+from PyQt5.QtGui import QPainter, QColor, QFontMetrics, QPainterPath, QFont, QPaintEvent, QBrush, QMouseEvent, QPen, \
+    QPolygon, QPolygonF
 from PyQt5.QtWidgets import QWidget
 
 
@@ -22,7 +23,7 @@ class _PlotsDict(dict):
         self.parent: _AbstractGraphicView = parent
 
     def ticks(self, orientation):
-        return range(self.max(orientation)+1)
+        return range(ceil(self.max(orientation)) + 1)
 
     def max(self, orientation):
         def y():
@@ -43,6 +44,7 @@ class _PlotsDict(dict):
 
 class _AbstractGraph:
     default_brush = QBrush(QColor(255, 128, 0))
+    default_pen = QPen(QColor(0, 0, 0))
 
     _size: float = None
 
@@ -54,6 +56,7 @@ class _AbstractGraph:
         if color:
             self._color = color
             self.default_brush = QBrush(color)
+            self.default_pen = QPen(color)
 
         self.brush = None
 
@@ -73,7 +76,7 @@ class _AbstractGraph:
     def after_paint(self):
         pass
 
-    def color(self):
+    def color(self) -> QColor:
         return self._color
 
     def get_brush(self) -> QBrush:
@@ -81,13 +84,20 @@ class _AbstractGraph:
             return self.default_brush
         return self.brush
 
+    def pen(self) -> QPen:
+        return self.default_pen
+
     def check_mouse(self, x: int, y: int, figure: QRect):
         self.rectangles.append(_TooltipPreparedData(figure, x, y, self.name, self._color))
 
     def mouse_move(self, pos: QPoint, out: List[Tuple[QPoint, int, int, str, QColor]]):
         for data in self.rectangles:
-            if data.rect.contains(pos):
-                out.append((pos, data.x, data.y, data.name, data.color))
+            if isinstance(data.rect, (QRect, QRectF)):
+                if data.rect.contains(pos):
+                    out.append((pos, data.x, data.y, data.name, data.color))
+            elif isinstance(data.rect, (QPolygon, QPolygonF)):
+                if data.rect.containsPoint(pos, Qt.WindingFill):
+                    out.append((pos, data.x, data.y, data.name, data.color))
 
     def size(self):
         if self._size is not None:
@@ -100,6 +110,55 @@ class _AbstractGraph:
     def max_x(self):
         return max([i for i in self.data.keys()])
 
+
+class _Line(_AbstractGraph):
+    _area_width = 20
+
+    def paint(self, painter: QPainter):
+        painter.setPen(self.pen())
+        previous_x, previous_y = None, None
+        start = QPoint(self.parent.margin_left(), self.parent.height() - self.parent.margin_top())
+        x_interval = self.parent.horizontal_ax.tick_interval()
+        y_interval = self.parent.vertical_ax.tick_interval()
+        for x, y in self.data.items():
+            if previous_x is not None:
+                a = start + QPoint(previous_x * x_interval, -previous_y * y_interval)
+                b = start + QPoint(x * x_interval, -y * y_interval)
+                painter.drawLine(a, b)
+                length = sqrt(pow(a.x() - b.x(), 2) + pow(a.y() - b.y(), 2))
+                c = self._area_width / length
+                c_x = c * (b.x() - a.x())
+                c_y = c * (b.y() - a.y())
+
+                bounds = [QPointF(a.x() + c_x, a.y() - c_y),
+                          QPointF(b.x() + c_x, b.y() - c_y),
+                          QPointF(b.x() - c_x, b.y() + c_y),
+                          QPointF(a.x() - c_x, a.y() + c_y)]
+
+                polygon = QPolygonF(bounds)
+
+                self.rectangles.append(
+                    _TooltipPreparedData(
+                        polygon,
+                        x,
+                        y,
+                        self.name,
+                        self.color()
+                    )
+                )
+
+            previous_x, previous_y = x, y
+
+    def mouse_move(self, pos: QPoint, out: List[Tuple[QPoint, int, int, str, QColor]]):
+        for data in self.rectangles:
+            if isinstance(data.rect, (QRect, QRectF)):
+                if data.rect.contains(pos):
+                    out.append((pos, data.x, data.y, data.name, data.color))
+                    return
+            elif isinstance(data.rect, (QPolygon, QPolygonF)):
+                if data.rect.containsPoint(pos, Qt.WindingFill):
+                    out.append((pos, data.x, data.y, data.name, data.color))
+                    return
 
 class _Scatter(_AbstractGraph):
     default_brush = QBrush(QColor(255, 128, 0))
@@ -128,7 +187,7 @@ class _Scatter(_AbstractGraph):
         super().__init__(data, name, parent, color)
 
 
-class _Plot(_AbstractGraph):
+class _Bar(_AbstractGraph):
     def __init__(self, data: Dict[int, int], name: str, parent, color: QColor = None):
         super().__init__(data, name, parent, color)
 
@@ -485,6 +544,8 @@ class Grid:
 
 
 class _AbstractGraphicView(QWidget):
+    plot_type = _AbstractGraph
+
     _default_colors = [QColor(255, 128, 0), QColor(0, 0, 255), QColor(255, 0, 0), QColor(0, 255, 0)]
     _default_tooltip_brush = QBrush(QColor(255, 255, 255, 80))
 
@@ -503,7 +564,7 @@ class _AbstractGraphicView(QWidget):
         self._mouse_pos = QPoint(0, 0)
 
         self.tooltips = []
-        self._tooltip_func: Callable[[str, int, str], str] = lambda text, bar, plot_name: text
+        self._tooltip_func: Callable[[str, int, str], str] = lambda text, bar, plot_name: None
         self._tooltip_count = 0
         self._tooltip_horizontal_offset = 10
 
@@ -531,7 +592,7 @@ class _AbstractGraphicView(QWidget):
 
     # %update data
     def update_data(self, data, name):
-        self.plots[name] = _Plot(data, name, self, self.plots[name].color())
+        self.plots[name] = _Bar(data, name, self, self.plots[name].color())
 
         self.repaint()
 
@@ -587,13 +648,12 @@ class _AbstractGraphicView(QWidget):
     def _show_tooltip(self, rect, text, bar, plot_name):
         self.tooltips.append((rect, text, bar, plot_name))
 
-    def _paint_tooltip(self, painter: QPainter, point: QPoint, text: str, bar: int, plot_name: str,
+    def _paint_tooltip(self, painter: QPainter, point: QPoint, y: int, x: int, plot_name: str,
                        color: QColor, vertical_offset: int) -> int:
         painter.setPen(QPen(QColor(40, 40, 40)))
-        res = self._tooltip_func(text, bar, plot_name)
+        res = self._tooltip_func(y, x, plot_name)
         painter.setBrush(self._default_tooltip_brush)
-        point.setY(point.y() + vertical_offset)
-        point.setX(point.x() + self._tooltip_horizontal_offset)
+        point = QPoint(point.x() + self._tooltip_horizontal_offset, point.y() + vertical_offset)
         color = QColor(
             min(color.red() * 1.4, 255),
             min(color.green() * 1.4, 255),
@@ -635,11 +695,13 @@ class _AbstractGraphicView(QWidget):
                 res)
 
             return height + 11
+        return 0
 
     # %plot
 
-    def add_plot(self, data, name) -> str:
-        raise NotImplementedError()
+    def add_plot(self, data, name, color=None) -> str:
+        self.plots[name] = self.plot_type(data, name, self, color=self._define_color(color))
+        return name
 
     def plot_size(self):
         return self._default_plot_size

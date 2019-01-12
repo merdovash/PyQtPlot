@@ -31,8 +31,8 @@ class QBarGraphWidget(_AbstractGraphicView):
 
     def add_plot(self, plot: Dict[int, int], name: str, color: QColor = None):
         color = self._define_color(color)
-        print(color.name())
         self.plots[name] = _Plot(plot, name, self, color=color)
+
         plots: List[_Plot] = list(self.plots.values())
         for index, p in enumerate(plots):
             p.set_nested_width(p.real_width() / len(plots))

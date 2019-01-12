@@ -1,4 +1,4 @@
-from math import cos, sin
+from math import cos, sin, ceil
 from operator import xor
 from typing import Dict, Callable, List, Tuple
 
@@ -167,6 +167,9 @@ class _Axis:
     VERTICAL = 0
     HORIZONTAL = 1
 
+    _min_tick_interval = 30
+    _tick_skip = [1, 2, 5, 10, 25, 100, 1000]
+
     def __init__(self, parent):
         self.width = parent.width
         self.height = parent.height
@@ -265,11 +268,18 @@ class _HorizontalAxis(_Axis):
         self._set_tick_interval(self.size() / self.tick_count())
         self._set_y_pos(height - margin_bottom)
 
+        tick_interval = self.tick_interval()
+        skip = 0
+        while self._tick_skip[skip] * tick_interval < self._min_tick_interval:
+            skip += 1
+
         y_pos = self.y_pos()
         tick_width = self.tick_width()
 
         for i in range(self.tick_count()):
-            x_pos = margin_left + (i + self.offset()) * self.tick_interval()
+            if skip != 0 and (i-1) % self._tick_skip[skip] == 0:
+                continue
+            x_pos = margin_left + (i + self.offset()) * tick_interval
             painter.drawLine(x_pos, y_pos - tick_width / 2, x_pos, y_pos + tick_width / 2)
 
             if self.tick_rotation() != 0:
@@ -278,9 +288,9 @@ class _HorizontalAxis(_Axis):
                 painter.translate(-x_pos, -(y_pos + tick_width / 2 + 4))
                 painter.drawText(
                     QRect(
-                        x_pos - self.tick_interval() / 2 + self.tick_margin() * cos(self.tick_rotation()) - 20,
-                        self.y_pos() + (self.tick_width() / 2 + 4) * cos(
-                            self.tick_rotation()) - self.tick_margin() * sin(self.tick_rotation()),
+                        x_pos - tick_interval / 2 + self.tick_margin() * cos(self.tick_rotation()) - 20,
+                        y_pos + (tick_width / 2 + 4) * cos(self.tick_rotation()) - self.tick_margin() * sin(
+                            self.tick_rotation()),
                         50,
                         30),
                     xor(Qt.AlignHCenter, Qt.AlignVCenter),
@@ -291,8 +301,8 @@ class _HorizontalAxis(_Axis):
                 painter.drawText(
                     QRect(
                         x_pos - self.tick_interval() / 2,
-                        self.y_pos() + tick_width / 2 + 4 + self.tick_margin(),
-                        self.tick_interval(),
+                        y_pos + tick_width / 2 + 4 + self.tick_margin(),
+                        tick_interval,
                         20),
                     Qt.AlignHCenter,
                     str(self.ticks()[i])
@@ -341,9 +351,16 @@ class _VerticalAxis(_Axis):
         self._set_size(height - bottom - bottom)
         self._set_tick_interval(self.size() / self.tick_count())
 
+        tick_interval = self.tick_interval()
+        skip = 0
+        while self._tick_skip[skip] * tick_interval < self._min_tick_interval:
+            skip += 1
+
         for i in range(self.tick_count()):
+            if skip != 0 and i % self._tick_skip[skip] != 0:
+                continue
             if i in ticks:
-                y_pos = (height - bottom) - i * self.tick_interval()
+                y_pos = (height - bottom) - i * tick_interval
                 painter.drawLine(left - self.tick_width() / 2, y_pos, left + self.tick_width() / 2, y_pos)
 
                 painter.drawText(
@@ -496,9 +513,9 @@ class _AbstractGraphicView(QWidget):
         point.setY(point.y() + vertical_offset)
         point.setX(point.x() + self._tooltip_horizontal_offset)
         color = QColor(
-            min(color.red()*1.4, 255),
-            min(color.green()*1.4, 255),
-            min(color.blue()*1.4, 255),
+            min(color.red() * 1.4, 255),
+            min(color.green() * 1.4, 255),
+            min(color.blue() * 1.4, 255),
             80)
 
         if res is not None:

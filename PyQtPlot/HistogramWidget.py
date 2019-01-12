@@ -36,13 +36,13 @@ class Histogram(QBarGraphWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
-    hist = Histogram([randint(1995, 2014) for _ in range(randint(20, 50))], name="1")
+    hist = Histogram([randint(1995, 2014) for _ in range(randint(200, 500))], name="1")
 
     hist.horizontal_ax.set_ticks(list(range(1990, 2018)))
     hist.horizontal_ax.set_tick_margin(20)
     hist.horizontal_ax.set_tick_rotation(30)
-    hist.add_plot([randint(1995, 2014) for _ in range(randint(20, 50))], name="2")
-    # hist.add_plot([randint(1995, 2014) for _ in range(randint(20, 50))], name="3")
+    hist.add_plot([randint(1995, 2014) for _ in range(randint(200, 500))], name="2")
+    hist.add_plot([randint(1995, 2014) for _ in range(randint(200, 500))], name="3")
     hist.horizontal_ax.set_label("Год")
     hist.vertical_ax.set_label("Количество")
     hist.set_tooltip_func(lambda x, y, plot_name: f"Количество: {y}\nГод: {x}\nГрафик: {plot_name}")

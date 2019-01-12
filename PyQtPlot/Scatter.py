@@ -19,8 +19,8 @@ class QScatter(_AbstractGraphicView):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = QScatter()
-    w.add_plot([x * x for x in range(6)], 'first')
-    w.add_plot([sqrt(x) for x in range(10)], 'second')
+    w.add_plot([x * x for x in range(10)], 'first')
+    w.add_plot([sqrt(x) for x in range(25)], 'second')
     # w.vertical_ax.set_ticks(range(25))
     # w.horizontal_ax.set_ticks(range(25))
     w.set_tooltip_func(lambda y, x, name: f"{name}: ({round(x, 2)}, {round(y, 2)})")

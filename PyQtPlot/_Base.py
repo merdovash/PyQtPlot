@@ -1,3 +1,4 @@
+from collections import defaultdict
 from math import cos, sin, ceil, sqrt, floor
 from operator import xor
 from typing import Dict, Callable, List, Tuple
@@ -62,12 +63,13 @@ class _AbstractGraph:
 
         self.rectangles: List[_TooltipPreparedData] = []
 
-    def paint_event(self, painter: QPainter):
+    def paint_event(self, painter: QPainter, echo=None):
         self.before_paint()
-        self.paint(painter)
+        new_echo = self.paint(painter, echo)
         self.after_paint()
+        return new_echo
 
-    def paint(self, painter: QPainter):
+    def paint(self, painter: QPainter, echo=None)-> Dict:
         raise NotImplementedError()
 
     def before_paint(self):
@@ -114,7 +116,7 @@ class _AbstractGraph:
 class _Line(_AbstractGraph):
     _area_width = 20
 
-    def paint(self, painter: QPainter):
+    def paint(self, painter: QPainter, echo=None):
         painter.setPen(self.pen())
         previous_x, previous_y = None, None
         start = QPoint(self.parent.margin_left(), self.parent.height() - self.parent.margin_top())
@@ -160,10 +162,11 @@ class _Line(_AbstractGraph):
                     out.append((pos, data.x, data.y, data.name, data.color))
                     return
 
+
 class _Scatter(_AbstractGraph):
     default_brush = QBrush(QColor(255, 128, 0))
 
-    def paint(self, painter: QPainter):
+    def paint(self, painter: QPainter, echo=None):
         size = self.size()
         painter.setBrush(self.get_brush())
         start = QPoint(self.parent.margin_left(), self.parent.height() - self.parent.margin_top())
@@ -188,29 +191,42 @@ class _Scatter(_AbstractGraph):
 
 
 class _Bar(_AbstractGraph):
-    def __init__(self, data: Dict[int, int], name: str, parent, color: QColor = None):
+    def __init__(self, data: Dict[int, int], name: str, parent, color: QColor = None, stacked=False):
         super().__init__(data, name, parent, color)
 
+        self.stacked = stacked
         self._width = 0.75
         self._nested_width = 0
         self._offset = 0
 
-    def paint(self, painter):
+    def paint(self, painter, echo=None):
         margin_left = self.parent.margin_left()
 
         for bar, h in self.data.items():
-            x_pos = margin_left + self.parent.horizontal_ax.ticks().index(
-                bar) * self.parent.horizontal_ax.tick_interval()
+            x_pos = margin_left + self.parent.horizontal_ax.ticks().index(bar) \
+                    * self.parent.horizontal_ax.tick_interval()
+
+            height = int(h * self.parent.vertical_ax.tick_interval())
+            width = self.parent.horizontal_ax.tick_interval() * self.width()
+
+            if self.stacked:
+                y_offset = echo[bar]
+                echo[bar] += height
+            else:
+                y_offset = 0
+
             rect = QRect(
                 x_pos + (1 - self.real_width() + self.offset() * 2) * self.parent.horizontal_ax.tick_interval() / 2,
-                self.parent.horizontal_ax.y_pos(),
-                self.parent.horizontal_ax.tick_interval() * self.width(),
-                -h * self.parent.vertical_ax.tick_interval())
+                int(self.parent.horizontal_ax.y_pos() - y_offset),
+                width,
+                -height)
             self.check_mouse(bar, h, rect)
             painter.fillRect(
                 rect,
                 self.color()
             )
+
+        return echo
 
     def set_width(self, val):
         self._width = val
@@ -551,7 +567,7 @@ class _AbstractGraphicView(QWidget):
 
     _default_plot_size: int
 
-    def __init__(self, flags, *args, **kwargs):
+    def __init__(self, flags=None, *args, **kwargs):
         super().__init__(flags, *args)
 
         if kwargs.get('data', False):
@@ -625,8 +641,9 @@ class _AbstractGraphicView(QWidget):
         self.horizontal_ax.paint(painter)
         self.grid.paint(painter)
 
+        plot_echo = defaultdict(int)
         for plot in self.plots.values():
-            plot.paint_event(painter)
+            plot_echo = plot.paint_event(painter, plot_echo)
 
         vertical_offset = 0
         while len(self.tooltips):

@@ -14,14 +14,10 @@ class QBarGraphWidget(_AbstractGraphicView):
     _default_plot_size = 0.8
     plot_type = _Bar
 
-    def __init__(self, bars, heights, flags, name="", *args, **kwargs):
-        assert len(bars) == len(heights)
+    def __init__(self, data=None, flags=None, *args, **kwargs):
         _AbstractGraphicView.__init__(self, flags, *args, **kwargs)
-
-        self.bars = bars
-        self.heights = heights
-
-        self.add_plot({bars[i]: heights[i] for i in range(len(bars))}, name, color=kwargs.get('color', None))
+        if data is not None:
+            self.add_plot(data, kwargs.get('name'), color=kwargs.get('color', None))
 
         # if len(heights):
         #     self.vertical_ax.set_ticks(range(0, max(heights) + 1, max(int(max(heights) / 20), 1)))
